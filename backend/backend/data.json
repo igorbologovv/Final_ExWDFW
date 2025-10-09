@@ -1,0 +1,18 @@
+{
+  "sessions": [
+    {
+      "id": "55ea5b42",
+      "title": "MyPeractice",
+      "description": "Practice Hard etc",
+      "date": "2025-01-02",
+      "time": "02:03",
+      "maxParticipants": 10,
+      "type": "public",
+      "location": "my location",
+      "managementCode": "7aiwyzg",
+      "attendees": [],
+      "createdAt": "2025-10-09T11:20:46.340Z",
+      "updatedAt": "2025-10-09T11:20:46.340Z"
+    }
+  ]
+}
