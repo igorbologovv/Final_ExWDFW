@@ -1,126 +1,149 @@
-import { useEffect, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
-import { attend, getSession, kickAttendee, unattend, updateSession, deleteSession } from "../api";
-import AttendanceList from "../components/AttendanceList";
+// SessionDetails.tsx
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { getSession, attend, deleteSession, removeAttendee } from "../api";
+
+type Attendee = { id: string; name?: string; attendanceCode: string; createdAt: string };
+type Session = {
+  id: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  maxParticipants: number;
+  type: "public" | "private";
+  location?: string;
+  attendees: Attendee[];
+};
+
+function useMgmtCode(id?: string) {
+  const [sp] = useSearchParams();
+  const [mgmt, setMgmt] = useState<string>("");
+
+  useEffect(() => {
+    const q = sp.get("code");
+    if (q) {
+      setMgmt(q);
+      if (id) localStorage.setItem(`mgmt:${id}`, q); // синхронизируем, если пришли с ссылкой
+      return;
+    }
+    if (id) {
+      const saved = localStorage.getItem(`mgmt:${id}`) ?? "";
+      setMgmt(saved);
+    }
+  }, [id, sp]);
+
+  return mgmt;
+}
 
 export default function SessionDetails() {
   const { id } = useParams<{ id: string }>();
-  const [sp] = useSearchParams();
-  const mgmt = sp.get("code") ?? "";
-  const [s, setS] = useState<any>(null);
-  const [name, setName] = useState("");
-  const [attendanceCode, setAttendanceCode] = useState("");
-  const [edit, setEdit] = useState(false);
-  const [patch, setPatch] = useState<any>({});
+  const navigate = useNavigate();
+  const mgmt = useMgmtCode(id);
+
+  const [sess, setSess] = useState<Session | null>(null);
+  const [err, setErr] = useState<string>("");
+
+  const isManageMode = useMemo(() => Boolean(mgmt), [mgmt]);
 
   async function load() {
     if (!id) return;
-    const data = await getSession(id);
-    setS(data);
-    setPatch({
-      title: data.title, description: data.description, date: data.date, time: data.time,
-      maxParticipants: data.maxParticipants, type: data.type, location: data.location ?? ""
-    });
+    setErr("");
+    try {
+      const s = await getSession(id);
+      setSess(s);
+    } catch (e: any) {
+      setErr(e.message ?? String(e));
+    }
   }
-  useEffect(() => { load(); }, [id]);
 
-  async function join() {
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  async function onAttend(name?: string) {
     if (!id) return;
-    const r = await attend(id, name || undefined);
-    setAttendanceCode(r.attendanceCode);
-    await load();
+    setErr("");
+    try {
+      await attend(id, name);
+      await load();
+    } catch (e: any) {
+      setErr(e.message ?? String(e));
+    }
   }
 
-  async function leave() {
-    if (!id) return;
-    await unattend(id, attendanceCode);
-    setAttendanceCode("");
-    await load();
+  async function onDelete() {
+    if (!id || !mgmt) {
+      alert("No management code found for this session.");
+      return;
+    }
+    if (!confirm("Delete this session? This action cannot be undone.")) return;
+    try {
+      await deleteSession(id, mgmt);
+      localStorage.removeItem(`mgmt:${id}`);
+      navigate("/");
+    } catch (e: any) {
+      alert(e.message ?? String(e));
+    }
   }
 
-  async function kick(attendeeId: string) {
-    if (!id || !mgmt) return;
-    await kickAttendee(id, mgmt, attendeeId);
-    await load();
+  async function onKick(attendeeId: string) {
+    if (!id || !mgmt) {
+      alert("No management code found.");
+      return;
+    }
+    if (!confirm("Remove this attendee?")) return;
+    try {
+      await removeAttendee(id, attendeeId, mgmt);
+      await load();
+    } catch (e: any) {
+      alert(e.message ?? String(e));
+    }
   }
 
-  async function save() {
-    if (!id || !mgmt) return;
-    await updateSession(id, mgmt, {
-      ...patch,
-      maxParticipants: Number(patch.maxParticipants),
-      type: patch.type
-    });
-    setEdit(false);
-    await load();
-  }
+  if (!sess) return <div className="panel"><p>Loading...</p>{err && <p className="error">{err}</p>}</div>;
 
-  async function remove() {
-    if (!id || !mgmt) return;
-    await deleteSession(id, mgmt);
-    window.location.href = "/";
-  }
-
-  if (!s) return <div className="panel"><p>Loading…</p></div>;
-
-  const seatsLeft = s.maxParticipants - s.attendees.length;
+  const going = sess.attendees?.length ?? 0;
 
   return (
     <div className="panel">
-      <h2>{s.title}</h2>
-      <p className="muted">{s.date} {s.time} · {s.type.toUpperCase()} {s.location ? `· ${s.location}` : ""}</p>
-      <p>{s.description}</p>
+      <h2>{sess.title}</h2>
+      <p className="muted">
+        {sess.date} {sess.time} · {sess.type.toUpperCase()}
+        {sess.location ? ` · ${sess.location}` : ""}
+      </p>
+      <p>{sess.description}</p>
+      <p className="muted">{going}/{sess.maxParticipants} going</p>
 
-      <div className="box">
-        <h3>Attendance ({s.attendees.length}/{s.maxParticipants})</h3>
-        <div className="row">
-          <input placeholder="Your name (optional)" value={name} onChange={e=>setName(e.target.value)} />
-          <button disabled={seatsLeft<=0} onClick={join}>I’m going</button>
-        </div>
-        {attendanceCode && (
-          <div className="notice">
-            <p>Your attendance code (save it to leave later):</p>
-            <code>{attendanceCode}</code>
-            <div className="row">
-              <button onClick={leave}>Not going</button>
-            </div>
+      {/* NEW: управленческий баннер */}
+      {isManageMode ? (
+        <div className="notice">
+          <b>Manage mode</b> — you can edit or delete this session and remove attendees.
+          <div className="row" style={{ gap: 8, marginTop: 8 }}>
+            {/* тут можно повесить Edit позже */}
+            <button className="danger" onClick={onDelete}>Delete session</button>
           </div>
-        )}
-        <AttendanceList attendees={s.attendees} onKick={mgmt ? kick : undefined} />
-      </div>
-
-      {mgmt && (
-        <div className="box">
-          <h3>Manage (organizer)</h3>
-          {!edit ? (
-            <div className="row">
-              <button onClick={()=>setEdit(true)}>Edit</button>
-              <button className="danger" onClick={remove}>Delete session</button>
-            </div>
-          ) : (
-            <div className="form">
-              <input value={patch.title} onChange={e=>setPatch({...patch, title:e.target.value})}/>
-              <textarea value={patch.description} onChange={e=>setPatch({...patch, description:e.target.value})}/>
-              <div className="row">
-                <input type="date" value={patch.date} onChange={e=>setPatch({...patch, date:e.target.value})}/>
-                <input type="time" value={patch.time} onChange={e=>setPatch({...patch, time:e.target.value})}/>
-              </div>
-              <div className="row">
-                <input type="number" min={1} value={patch.maxParticipants} onChange={e=>setPatch({...patch, maxParticipants:e.target.value})}/>
-                <select value={patch.type} onChange={e=>setPatch({...patch, type:e.target.value})}>
-                  <option value="public">Public</option>
-                  <option value="private">Private</option>
-                </select>
-              </div>
-              <input placeholder="Location" value={patch.location} onChange={e=>setPatch({...patch, location:e.target.value})}/>
-              <div className="row">
-                <button onClick={save}>Save</button>
-                <button className="ghost" onClick={()=>setEdit(false)}>Cancel</button>
-              </div>
-              {/* [AI-GEN] Editing protected by management code in query string */}
-            </div>
-          )}
         </div>
+      ) : (
+        <div className="row" style={{ gap: 8 }}>
+          <button onClick={() => onAttend()}>I'm going</button>
+        </div>
+      )}
+
+      <h3 style={{ marginTop: 24 }}>Attendees</h3>
+      {going === 0 && <p className="muted">No attendees yet.</p>}
+      {going > 0 && (
+        <ul className="list">
+          {sess.attendees.map(a => (
+            <li key={a.id} className="row" style={{ justifyContent: "space-between" }}>
+              <span>{a.name || "(no name)"} · <span className="muted">{new Date(a.createdAt).toLocaleString()}</span></span>
+              {isManageMode && (
+                <button className="ghost" onClick={() => onKick(a.id)}>Remove</button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

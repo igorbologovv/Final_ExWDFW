@@ -1,3 +1,4 @@
+// CreateSession.tsx
 import { useState } from "react";
 import { createSession } from "../api";
 import { Link, useNavigate } from "react-router-dom";
@@ -9,19 +10,29 @@ export default function CreateSession() {
     maxParticipants: 10, type: "public", location: ""
   });
   const [result, setResult] = useState<{id:string; managementCode:string} | null>(null);
+  const [err, setErr] = useState<string>("");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const r = await createSession({
-      title: form.title,
-      description: form.description,
-      date: form.date,
-      time: form.time,
-      maxParticipants: Number(form.maxParticipants),
-      type: form.type as "public" | "private",
-      location: form.location || undefined
-    });
-    setResult(r);
+    setErr("");
+    try {
+      const r = await createSession({
+        title: form.title,
+        description: form.description,
+        date: form.date,
+        time: form.time,
+        maxParticipants: Number(form.maxParticipants),
+        type: form.type as "public" | "private",
+        location: form.location || undefined
+      });
+
+      // NEW: запоминаем админ-код локально, чтобы потом был доступ "Manage"
+      localStorage.setItem(`mgmt:${r.id}`, r.managementCode);
+
+      setResult(r);
+    } catch (e: any) {
+      setErr(e.message ?? String(e));
+    }
   }
 
   return (
@@ -47,6 +58,8 @@ export default function CreateSession() {
         <button type="submit">Create</button>
       </form>
 
+      {err && <p className="error">{err}</p>}
+
       {result && (
         <div className="notice">
           <p>Session created!</p>
@@ -54,6 +67,9 @@ export default function CreateSession() {
           <p><b>Management code:</b> {result.managementCode}</p>
           <p>
             Open: <Link to={`/session/${result.id}`}>Session Details</Link>
+            {" · "}
+            {/* NEW: мгновенная ссылка в режим управления */}
+            <Link to={`/session/${result.id}?code=${result.managementCode}`}>Manage</Link>
           </p>
           {/* [AI-GEN] Keep the management code secret */}
         </div>

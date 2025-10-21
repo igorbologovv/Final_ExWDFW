@@ -1,4 +1,4 @@
-// [AI-GEN] Hobby Session Planner backend (Express)
+
 import express from "express";
 import cors from "cors";
 import crypto from "crypto";

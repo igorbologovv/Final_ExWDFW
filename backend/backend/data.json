@@ -1,18 +1,29 @@
 {
   "sessions": [
     {
-      "id": "55ea5b42",
-      "title": "MyPeractice",
-      "description": "Practice Hard etc",
-      "date": "2025-01-02",
-      "time": "02:03",
+      "id": "b341420e",
+      "title": "New",
+      "description": "hahahah",
+      "date": "2027-01-03",
+      "time": "01:01",
       "maxParticipants": 10,
       "type": "public",
-      "location": "my location",
-      "managementCode": "7aiwyzg",
-      "attendees": [],
-      "createdAt": "2025-10-09T11:20:46.340Z",
-      "updatedAt": "2025-10-09T11:20:46.340Z"
+      "location": "My",
+      "managementCode": "czMO13Q",
+      "attendees": [
+        {
+          "id": "ddfa769e",
+          "attendanceCode": "TgeyrgY",
+          "createdAt": "2025-10-21T08:06:43.934Z"
+        },
+        {
+          "id": "5d291476",
+          "attendanceCode": "h9ffI8s",
+          "createdAt": "2025-10-21T08:06:44.476Z"
+        }
+      ],
+      "createdAt": "2025-10-21T07:57:03.879Z",
+      "updatedAt": "2025-10-21T08:06:44.476Z"
     }
   ]
 }
