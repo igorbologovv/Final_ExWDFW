@@ -5,6 +5,7 @@ export interface Attendee {
   name?: string;
   attendanceCode: string;
   createdAt: string;
+  clientId?: string;
 }
 
 export interface Session {

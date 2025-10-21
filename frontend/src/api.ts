@@ -1,4 +1,3 @@
-// api.ts
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 
 export type CreatePayload = {
@@ -11,8 +10,9 @@ export type CreatePayload = {
   location?: string;
 };
 
-export async function listSessions() {
-  const r = await fetch(`${BASE}/sessions`);
+export async function listSessions(params?: { filter?: string; scope?: string }) {
+  const q = new URLSearchParams(params as any).toString();
+  const r = await fetch(`${BASE}/sessions${q ? `?${q}` : ""}`);
   if (!r.ok) throw new Error(`listSessions failed: ${r.status}`);
   return r.json();
 }
@@ -36,20 +36,23 @@ export async function createSession(payload: CreatePayload): Promise<{id:string;
   return r.json();
 }
 
-export async function attend(id: string, name?: string) {
+// ---- отправляем имя + clientId ----
+export async function attend(id: string, name: string, clientId: string) {
   const r = await fetch(`${BASE}/sessions/${id}/attend`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    headers: {
+      "Content-Type": "application/json",
+      "X-Client-Id": clientId,           // дублируем в заголовок
+    },
+    body: JSON.stringify({ name, clientId }), // и в body
   });
   if (!r.ok) {
     const e = await r.json().catch(() => ({}));
     throw new Error(e.error ?? `attend failed: ${r.status}`);
   }
-  return r.json(); // { attendee: {...} }
+  return r.json(); // { attendanceCode, attendeeId }
 }
 
-// NEW: delete session (admin action)
 export async function deleteSession(id: string, managementCode: string): Promise<void> {
   const r = await fetch(`${BASE}/sessions/${id}?code=${encodeURIComponent(managementCode)}`, {
     method: "DELETE",
@@ -60,7 +63,6 @@ export async function deleteSession(id: string, managementCode: string): Promise
   }
 }
 
-// NEW: remove attendee (admin action)
 export async function removeAttendee(sessionId: string, attendeeId: string, managementCode: string): Promise<void> {
   const r = await fetch(
     `${BASE}/sessions/${sessionId}/attend/${attendeeId}?code=${encodeURIComponent(managementCode)}`,
